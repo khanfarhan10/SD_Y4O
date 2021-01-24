@@ -106,7 +106,33 @@ startj=fix(wsj/2)+1; % Starting column for window processing
 stopi= rows-inci; % Stop row for window processing
 stopj= cols-incj; % Stop column for window processing
 
+% change rot and inv_rot to lookup dictionary/matrix :
+% Finding Inverse is computationally expensive O(len(Rotation)*n^2)
+% Rot=[1 0 0;0 cosd(2*Rotation) sind(2*Rotation);0 -sind(2*Rotation) cosd(2*Rotation)];
+% inv_Rot = Rot\eye(size(Rot));
+% these take up a lot of time and make the code inefficient inside the triple for loop
+
+RotationAngles=-45:ang_step:45;
+Big_U_Matrix=zeros(3,3,length(RotationAngles));
+Big_U_Matrix_Inv=zeros(3,3,length(RotationAngles));
+
+disp('Initializing the U Matrix :');
+counter=0;
+for Rotation=-45:ang_step:45
+    counter=counter+1;
+    Rot=[1 0 0;0 cosd(2*Rotation) sind(2*Rotation);0 -sind(2*Rotation) cosd(2*Rotation)];
+    % inv_Rot = Rot\eye(size(Rot));
+    % always invertible as cos^2 + sin^2 =1
+    inv_Rot=Rot';
+    Big_U_Matrix(:,:,counter)=Rot(:,:);
+    Big_U_Matrix_Inv(:,:,counter)=inv_Rot(:,:);
+end
+
+disp('Successfully Initialized the U Matrix !');
+
 %%
+disp('Processing');
+
 t_start = tic;
 start_time = datestr(now);
 h = waitbar(0,'1','Name','Progress Monitor...');
@@ -157,17 +183,25 @@ for ii=starti:stopi
         temp = 0;
         
         Hellinger_Dist_T = zeros(1,max(size(-45:ang_step:45)));
+        counter1=0;
         
         
         for Rotation=-45:ang_step:45
+            % shift C_Unrot to up as it is invariant in the loop
+            % C_Unrot= [abs(Bin_C11) Bin_C12 Bin_C13;Bin_C21 abs(Bin_C22) Bin_C23;Bin_C31 Bin_C32 abs(Bin_C33)];
+            % change rot and inv rot to lookup dictionary/matrix :
+            % Finding Inverse is computationally expensive
+            % Rot=[1 0 0;0 cosd(2*Rotation) sind(2*Rotation);0 -sind(2*Rotation) cosd(2*Rotation)];
+            % inv_Rot = Rot\eye(size(Rot));
             
-            C_Unrot= [abs(Bin_C11) Bin_C12 Bin_C13;Bin_C21 abs(Bin_C22) Bin_C23;Bin_C31 Bin_C32 abs(Bin_C33)];
+            counter1=counter1+1;
             
-            Rot=[1 0 0;0 cosd(2*Rotation) sind(2*Rotation);0 -sind(2*Rotation) cosd(2*Rotation)];
+            Rot(:,:)=Big_U_Matrix(:,:,counter1);
+            inv_Rot(:,:)=Big_U_Matrix_Inv(:,:,counter1);
             
             temp=temp+1;
             
-            inv_Rot = Rot\eye(size(Rot));
+            
             C_Rot=Rot*C_Unrot*inv_Rot;
             
             C_Rot= [abs(C_Rot(1,1)) C_Rot(1,2) C_Rot(1,3);C_Rot(2,1) abs(C_Rot(2,2)) C_Rot(2,3);C_Rot(3,1) C_Rot(3,2) abs(C_Rot(3,3))];
